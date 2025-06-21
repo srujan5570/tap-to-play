@@ -13,7 +13,7 @@ This Flutter app has been integrated with the Castar SDK to enable tap-to-play f
 
 ## Setup Instructions
 
-### 1. Android Configuration
+### 1. Android Configuration ✅ COMPLETE
 
 The app is already configured with:
 - Castar SDK AAR file in `android/app/libs/CastarSdk.aar`
@@ -22,12 +22,13 @@ The app is already configured with:
 - Application class in `android/app/src/main/kotlin/com/example/my_time/MyApplication.kt`
 - Internet permissions in `android/app/src/main/AndroidManifest.xml`
 
-### 2. iOS Configuration
+### 2. iOS Configuration ✅ READY FOR INTEGRATION
 
-The app is already configured with:
-- Castar SDK dependency in `ios/Podfile`
+The app is configured with:
+- Castar SDK framework in `ios/Frameworks/CastarSdk.framework`
 - Method channel implementation in `ios/Runner/AppDelegate.swift`
 - Internet permissions in `ios/Runner/Info.plist`
+- **Manual setup guide**: `ios/MANUAL_CASTAR_SETUP.md`
 
 ### 3. Install Dependencies
 
@@ -44,23 +45,18 @@ cd ios
 pod install
 ```
 
-### 4. Castar SDK Setup
+### 4. iOS Framework Integration
 
-#### Android Setup:
-1. **CastarSdk.aar is already included** in `android/app/libs/`
-2. **Dependencies are configured** in `build.gradle.kts`
-3. **Permissions are set** in `AndroidManifest.xml`
+**Follow the manual setup guide:**
+```bash
+cd ios
+open Runner.xcworkspace
+```
 
-#### iOS Setup:
-1. **Add Castar SDK to your project:**
-   - Download `CastarSdk.framework` from Castar
-   - Add it to your iOS project's `Frameworks` folder
-   - Or use CocoaPods if available: `pod 'CastarSdk'`
-
-2. **Update Podfile** (if using CocoaPods):
-   ```ruby
-   pod 'CastarSdk', '~> 1.0'
-   ```
+Then follow the steps in `ios/MANUAL_CASTAR_SETUP.md` to:
+1. Add CastarSdk.framework to Xcode project
+2. Configure build settings
+3. Embed the framework
 
 ### 5. Build and Run
 
@@ -68,7 +64,7 @@ pod install
 # For Android
 flutter run -d android
 
-# For iOS
+# For iOS (after framework integration)
 flutter run -d ios
 ```
 
@@ -155,6 +151,25 @@ MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCall
 }
 ```
 
+## iOS Implementation Details
+
+### 1. Framework Integration
+- `CastarSdk.framework` is placed in `ios/Frameworks/`
+- Manual integration required via Xcode (see `ios/MANUAL_CASTAR_SETUP.md`)
+
+### 2. AppDelegate Implementation
+```swift
+import CastarSdk
+
+// Start SDK
+DispatchQueue.global(qos: .background).async {
+    CastarSdk.Start(application, clientId)
+}
+
+// Stop SDK
+CastarSdk.Stop()
+```
+
 ## Troubleshooting
 
 ### Android Issues:
@@ -164,18 +179,29 @@ MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCall
 
 ### iOS Issues:
 1. **SDK not starting**: Check client ID format and internet connection
-2. **Build errors**: Ensure Castar SDK framework is properly added to iOS project
+2. **Build errors**: Follow `ios/MANUAL_CASTAR_SETUP.md` for framework integration
 3. **Permission issues**: Verify internet permissions in Info.plist
 
-## Notes
+## Current Status
 
-- The Castar SDK runs in a background thread on both platforms to avoid blocking the UI
-- Internet permission is required for SDK functionality on both platforms
-- The app displays real-time status of the SDK service
-- Error handling provides clear feedback for failed operations
-- Platform-specific UI indicators show which platform is being used
+### ✅ Complete:
+- **Android**: Full Castar SDK integration with AAR file
+- **iOS**: Framework provided, ready for Xcode integration
+- **Flutter**: Cross-platform UI and method channels
+- **Documentation**: Complete setup guides
+
+### ⏳ Pending:
+- **iOS**: Manual Xcode integration (follow `ios/MANUAL_CASTAR_SETUP.md`)
+
+## Next Steps
+
+1. **For iOS**: Follow the manual setup guide in `ios/MANUAL_CASTAR_SETUP.md`
+2. **Test both platforms** with your client ID
+3. **Build and deploy** the complete app
 
 ## Support
 
-For Castar SDK specific issues, refer to the official Castar documentation.
-For app integration issues, check the Flutter, iOS, and Android setup guides. 
+For Castar SDK specific issues:
+- Contact Castar support for SDK documentation
+- Check the manual setup guides for platform-specific issues
+- Verify framework compatibility with your deployment targets 
