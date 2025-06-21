@@ -39,6 +39,13 @@ jobs:
       - run: pod repo update
         working-directory: ios
 
+      - name: Debug CastarSDK Headers
+        run: |
+          echo "🔍 Debugging CastarSDK header files..."
+          cd ios
+          python debug_headers.py
+          echo "✅ Header debugging complete"
+
       - name: Fix CastarSDK Framework for Swift
         run: |
           echo "🔧 Fixing CastarSDK framework for Swift compatibility..."
