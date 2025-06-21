@@ -169,34 +169,62 @@ def add_framework_search_path():
     with open(project_file, 'r') as f:
         content = f.read()
     
-    # Look for FRAMEWORK_SEARCH_PATHS setting
-    if "FRAMEWORK_SEARCH_PATHS" in content:
-        print("✅ Framework search paths already configured")
+    # Look for build configuration sections
+    # We need to find the build settings for both Debug and Release configurations
+    build_config_pattern = r'(/\* Begin XCBuildConfiguration section \*/.*?/\* End XCBuildConfiguration section \*/)'
+    build_config_match = re.search(build_config_pattern, content, re.DOTALL)
+    
+    if not build_config_match:
+        print("❌ Could not find build configuration section")
+        return False
+    
+    build_config_section = build_config_match.group(1)
+    
+    # Find all build configuration blocks
+    config_blocks = re.findall(r'(\t\t[A-F0-9]{24} /\* .*? \*/ = \{.*?\n\t\t\};)', build_config_section, re.DOTALL)
+    
+    new_content = content
+    modified = False
+    
+    for config_block in config_blocks:
+        # Check if this is a build configuration (not a project configuration)
+        if "buildSettings = {" in config_block and ("Debug" in config_block or "Release" in config_block):
+            print(f"🔧 Processing build configuration: {config_block.split('/*')[1].split('*/')[0].strip()}")
+            
+            # Check if FRAMEWORK_SEARCH_PATHS already exists
+            if "FRAMEWORK_SEARCH_PATHS" in config_block:
+                # Update existing FRAMEWORK_SEARCH_PATHS
+                if '"$(SRCROOT)/Frameworks"' not in config_block:
+                    # Add our path to existing paths
+                    new_config_block = re.sub(
+                        r'(FRAMEWORK_SEARCH_PATHS = \()(.*?)(\);.*?;)',
+                        r'\1\2, "$(SRCROOT)/Frameworks"\3',
+                        config_block,
+                        flags=re.DOTALL
+                    )
+                    new_content = new_content.replace(config_block, new_config_block)
+                    modified = True
+                    print(f"✅ Added framework search path to existing configuration")
+            else:
+                # Add new FRAMEWORK_SEARCH_PATHS
+                new_config_block = config_block.replace(
+                    "buildSettings = {",
+                    '''buildSettings = {
+				FRAMEWORK_SEARCH_PATHS = ("$(SRCROOT)/Frameworks");'''
+                )
+                new_content = new_content.replace(config_block, new_config_block)
+                modified = True
+                print(f"✅ Added new framework search path configuration")
+    
+    if modified:
+        with open(project_file, 'w') as f:
+            f.write(new_content)
+        print("✅ Successfully updated framework search paths in build settings")
         return True
-    
-    # Add framework search path
-    # This is a simplified approach - in practice, you'd need to parse the build settings more carefully
-    search_path_pattern = r'(FRAMEWORK_SEARCH_PATHS = \(.*?\);|FRAMEWORK_SEARCH_PATHS = \(\);|FRAMEWORK_SEARCH_PATHS = \(.*?\);.*?;)'
-    
-    if re.search(search_path_pattern, content):
-        # Replace existing setting
-        new_content = re.sub(
-            search_path_pattern,
-            r'FRAMEWORK_SEARCH_PATHS = ("$(SRCROOT)/Frameworks");',
-            content
-        )
     else:
-        # Add new setting
-        # Find the build settings section and add the framework search path
-        print("⚠️ Manual framework search path configuration may be needed")
-        print("📋 Add '$(SRCROOT)/Frameworks' to Framework Search Paths in Xcode")
+        print("⚠️ No build configurations were modified")
+        print("📋 Framework search paths may need manual configuration")
         return True
-    
-    with open(project_file, 'w') as f:
-        f.write(new_content)
-    
-    print("✅ Added framework search path")
-    return True
 
 def main():
     """Main function"""
