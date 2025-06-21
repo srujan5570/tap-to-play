@@ -39,6 +39,13 @@ jobs:
       - run: pod repo update
         working-directory: ios
 
+      - name: Fix CastarSDK Framework for Swift
+        run: |
+          echo "🔧 Fixing CastarSDK framework for Swift compatibility..."
+          cd ios
+          python fix_framework_swift.py
+          echo "✅ Framework Swift compatibility fix complete"
+
       - name: Integrate CastarSDK Framework
         run: |
           echo "🔧 Integrating CastarSDK framework into Xcode project..."
