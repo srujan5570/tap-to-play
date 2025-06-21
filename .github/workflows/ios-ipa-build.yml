@@ -24,7 +24,11 @@ jobs:
           mkdir -p ios/Frameworks
           curl -L "https://download.castarsdk.com/ios.zip" -o ios/Frameworks/castar-ios.zip
           unzip ios/Frameworks/castar-ios.zip -d ios/Frameworks/
+          # Remove existing framework if it exists
+          rm -rf ios/Frameworks/CastarSDK.framework
+          # Move the framework to the correct location
           mv ios/Frameworks/CastarSDK-IOS/CastarSDK.framework ios/Frameworks/
+          # Clean up
           rm -rf ios/Frameworks/CastarSDK-IOS
           rm ios/Frameworks/castar-ios.zip
           echo "✅ CastarSDK framework downloaded and extracted"
