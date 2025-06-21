@@ -1,82 +1,78 @@
-name: iOS-ipa-build
+name: iOS IPA Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build-ios:
-    name: 🎉 iOS Build
     runs-on: macos-latest
+    
     steps:
-      - uses: actions/checkout@v3
-
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          architecture: x64
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-      - name: Download CastarSDK Framework
-        run: |
-          echo "🔧 Downloading CastarSDK framework..."
-          mkdir -p ios/Frameworks
-          curl -L "https://download.castarsdk.com/ios.zip" -o ios/Frameworks/castar-ios.zip
-          unzip ios/Frameworks/castar-ios.zip -d ios/Frameworks/
-          # Remove existing framework if it exists
-          rm -rf ios/Frameworks/CastarSDK.framework
-          # Move the framework to the correct location
-          mv ios/Frameworks/CastarSDK-IOS/CastarSDK.framework ios/Frameworks/
-          # Clean up
-          rm -rf ios/Frameworks/CastarSDK-IOS
-          rm ios/Frameworks/castar-ios.zip
-          echo "✅ CastarSDK framework downloaded and extracted"
-          ls -la ios/Frameworks/
-
-      - run: flutter pub get
-
-      - run: pod repo update
-        working-directory: ios
-
-      - name: Debug CastarSDK Headers
-        run: |
-          echo "🔍 Debugging CastarSDK header files..."
-          cd ios
-          python debug_headers.py
-          echo "✅ Header debugging complete"
-
-      - name: Fix CastarSDK Framework for Swift
-        run: |
-          echo "🔧 Fixing CastarSDK framework for Swift compatibility..."
-          cd ios
-          python fix_framework_swift.py
-          echo "✅ Framework Swift compatibility fix complete"
-
-      - name: Integrate CastarSDK Framework
-        run: |
-          echo "🔧 Integrating CastarSDK framework into Xcode project..."
-          cd ios
-          python add_framework_to_project.py
-          echo "✅ Framework integration complete"
-
-      - run: flutter build ios --release --no-codesign
-
-      - run: mkdir Payload
-        working-directory: build/ios/iphoneos
-
-      - run: mv Runner.app/ Payload
-        working-directory: build/ios/iphoneos
-
-      - name: Zip output
-        run: zip -qq -r -9 FlutterIpaExport.ipa Payload
-        working-directory: build/ios/iphoneos
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/FlutterIpaExport.ipa
-          tag: v1.0
-          overwrite: true
-          body: "This is first release" 
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        
+    - name: Download CastarSDK
+      run: |
+        echo "📥 Downloading CastarSDK..."
+        mkdir -p ios/Frameworks
+        curl -L -o ios/Frameworks/CastarSDK.framework.zip "https://github.com/castarsdk/ios-sdk/releases/download/v1.0.0/CastarSDK.framework.zip"
+        cd ios/Frameworks
+        unzip -q CastarSDK.framework.zip
+        rm CastarSDK.framework.zip
+        echo "✅ CastarSDK downloaded and extracted"
+        
+    - name: Get Flutter dependencies
+      run: flutter pub get
+      
+    - name: Build iOS IPA with Debug Code
+      run: |
+        echo "🔧 Building iOS IPA with debug code preserved..."
+        
+        # Build with debug code included (no stripping of debug info)
+        flutter build ipa \
+          --release \
+          --dart-define=FLUTTER_BUILD_MODE=release \
+          --dart-define=FLUTTER_BUILD_NAME=1.0.0 \
+          --dart-define=FLUTTER_BUILD_NUMBER=1 \
+          --export-options-plist=ios/ExportOptions.plist \
+          --build-number=1 \
+          --build-name=1.0.0 \
+          --no-tree-shake-icons \
+          --no-shrink \
+          --no-obfuscate \
+          --split-debug-info=build/debug-info \
+          --dart-define=KEEP_DEBUG_CODE=true
+        
+        echo "✅ iOS IPA built successfully with debug code preserved"
+        
+    - name: Upload IPA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-app
+        path: build/ios/ipa/*.ipa
+        retention-days: 30
+        
+    - name: Upload debug info
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-info
+        path: build/debug-info
+        retention-days: 30
+        
+    - name: Build Summary
+      run: |
+        echo "📱 Build completed successfully!"
+        echo "📦 IPA file: build/ios/ipa/"
+        echo "🐛 Debug info: build/debug-info/"
+        echo "🔧 Debug code preserved in release build"
+        echo "📊 Build artifacts uploaded" 

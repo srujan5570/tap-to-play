@@ -23,238 +23,267 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'My Time',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'CastarSDK Integration'),
+      title: 'CastarSDK Demo',
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      home: const CastarSDKPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
+class CastarSDKPage extends StatefulWidget {
+  const CastarSDKPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<CastarSDKPage> createState() => _CastarSDKPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
+class _CastarSDKPageState extends State<CastarSDKPage> {
   static const platform = MethodChannel('com.castarsdk.flutter/castar');
 
-  final TextEditingController _clientIdController = TextEditingController();
-  String _status = 'Ready';
-  bool _isRunning = false;
+  bool _isSdkRunning = false;
   bool _isLoading = false;
+  String _statusMessage = 'Ready to start CastarSDK';
+  String _lastError = '';
   Map<String, dynamic> _sdkStatus = {};
-  int _retryCount = 0;
-  static const int maxRetries = 3;
+  Timer? _statusTimer;
+
+  // Add crash protection
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
-    // Add a small delay to ensure app is fully loaded
-    Future.delayed(const Duration(seconds: 2), () {
-      _checkSDKStatus();
-    });
+    _initializeApp();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _clientIdController.dispose();
+    _statusTimer?.cancel();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
+  // Initialize app with crash protection
+  Future<void> _initializeApp() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Initializing app...';
+      });
 
-    switch (state) {
-      case AppLifecycleState.resumed:
-        print('📱 App resumed');
-        _checkSDKStatus();
-        break;
-      case AppLifecycleState.inactive:
-        print('📱 App inactive');
-        break;
-      case AppLifecycleState.paused:
-        print('📱 App paused - keeping CastarSDK running');
-        // Keep the app alive by preventing sleep
-        _keepAlive();
-        break;
-      case AppLifecycleState.detached:
-        print('📱 App detached');
-        break;
-      case AppLifecycleState.hidden:
-        print('📱 App hidden');
-        break;
+      // Wait a bit to ensure app is fully loaded
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Check SDK status
+      await _getSdkStatus();
+
+      setState(() {
+        _isInitialized = true;
+        _isLoading = false;
+        _statusMessage = 'App initialized successfully';
+      });
+
+      // Start periodic status check
+      _startStatusMonitoring();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'App initialization failed: $e';
+        _lastError = e.toString();
+      });
+      _logError('App initialization error: $e');
     }
   }
 
-  void _keepAlive() {
-    // This helps prevent the app from being terminated
-    print('🔋 Keeping app alive...');
+  // Start periodic status monitoring
+  void _startStatusMonitoring() {
+    _statusTimer?.cancel();
+    _statusTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        _getSdkStatus();
+      }
+    });
   }
 
-  Future<void> _startCastarSDK() async {
-    if (_clientIdController.text.isEmpty) {
-      setState(() {
-        _status = 'Error: Client ID is required';
-      });
+  // Get SDK status with crash protection
+  Future<void> _getSdkStatus() async {
+    try {
+      final result = await platform.invokeMethod('getCastarStatus');
+      if (result is Map<String, dynamic>) {
+        setState(() {
+          _sdkStatus = result;
+          _isSdkRunning = result['running'] ?? false;
+        });
+        _logMessage('SDK Status: $_sdkStatus');
+      }
+    } catch (e) {
+      _logError('Failed to get SDK status: $e');
+      // Don't update UI on status check failure to prevent crashes
+    }
+  }
+
+  // Start CastarSDK with crash protection
+  Future<void> _startCastarSdk() async {
+    if (!_isInitialized) {
+      _showError('App not initialized yet. Please wait...');
       return;
     }
 
-    setState(() {
-      _status = 'Starting CastarSDK...';
-      _isLoading = true;
-    });
-
     try {
-      final String result = await platform.invokeMethod('startCastarSdk', {
-        'clientId': _clientIdController.text,
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Starting CastarSDK...';
+        _lastError = '';
+      });
+
+      _logMessage('Starting CastarSDK...');
+
+      // Use a test client ID - replace with your actual client ID
+      const clientId = 'test_client_id_12345';
+
+      final result = await platform.invokeMethod('startCastarSdk', {
+        'clientId': clientId,
       });
 
       setState(() {
-        _status = result;
-        _isRunning = true;
         _isLoading = false;
-        _retryCount = 0; // Reset retry count on success
+        _statusMessage = result ?? 'CastarSDK started successfully';
+        _isSdkRunning = true;
       });
 
-      // Check status after starting
-      await _checkSDKStatus();
+      _logMessage('CastarSDK started: $result');
 
-      // Start periodic status checking
-      _startPeriodicStatusCheck();
-    } on PlatformException catch (e) {
-      print('❌ Platform Exception: ${e.message}');
-      setState(() {
-        _status = 'Error: ${e.message}';
-        _isLoading = false;
-      });
-
-      // Retry logic
-      if (_retryCount < maxRetries) {
-        _retryCount++;
-        print('🔄 Retrying... Attempt $_retryCount of $maxRetries');
-        Future.delayed(Duration(seconds: _retryCount * 2), () {
-          _startCastarSDK();
-        });
-      }
+      // Update status immediately
+      await _getSdkStatus();
     } catch (e) {
-      print('❌ General Exception: $e');
       setState(() {
-        _status = 'Error: $e';
         _isLoading = false;
+        _statusMessage = 'Failed to start CastarSDK';
+        _lastError = e.toString();
+        _isSdkRunning = false;
       });
+      _logError('Start CastarSDK error: $e');
+      _showError('Failed to start CastarSDK: $e');
     }
   }
 
-  Future<void> _stopCastarSDK() async {
-    setState(() {
-      _status = 'Stopping CastarSDK...';
-      _isLoading = true;
-    });
-
+  // Stop CastarSDK with crash protection
+  Future<void> _stopCastarSdk() async {
     try {
-      final String result = await platform.invokeMethod('stopCastarSdk');
-
       setState(() {
-        _status = result;
-        _isRunning = false;
-        _isLoading = false;
-        _sdkStatus = {};
+        _isLoading = true;
+        _statusMessage = 'Stopping CastarSDK...';
       });
 
-      // Stop periodic status checking
-      _stopPeriodicStatusCheck();
-    } on PlatformException catch (e) {
-      print('❌ Platform Exception: ${e.message}');
+      _logMessage('Stopping CastarSDK...');
+
+      final result = await platform.invokeMethod('stopCastarSdk');
+
       setState(() {
-        _status = 'Error: ${e.message}';
         _isLoading = false;
+        _statusMessage = result ?? 'CastarSDK stopped successfully';
+        _isSdkRunning = false;
       });
+
+      _logMessage('CastarSDK stopped: $result');
+
+      // Update status immediately
+      await _getSdkStatus();
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = 'Failed to stop CastarSDK';
+        _lastError = e.toString();
+      });
+      _logError('Stop CastarSDK error: $e');
+      _showError('Failed to stop CastarSDK: $e');
     }
   }
 
-  Future<void> _checkSDKStatus() async {
-    try {
-      final Map<String, dynamic> status = await platform.invokeMethod(
-        'getCastarStatus',
+  // Retry mechanism
+  Future<void> _retryCastarSdk() async {
+    _logMessage('Retrying CastarSDK...');
+    await _stopCastarSdk();
+    await Future.delayed(const Duration(seconds: 2));
+    await _startCastarSdk();
+  }
+
+  // Show error dialog
+  void _showError(String message) {
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Error'),
+              content: Text(message),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
       );
-
-      setState(() {
-        _sdkStatus = status;
-        _isRunning = status['running'] ?? false;
-      });
-
-      print('📊 SDK Status: $status');
-    } on PlatformException catch (e) {
-      print('❌ Error checking SDK status: ${e.message}');
     }
   }
 
-  void _startPeriodicStatusCheck() {
-    // Check status every 30 seconds to keep the app active
-    Future.delayed(const Duration(seconds: 30), () {
-      if (_isRunning) {
-        _checkSDKStatus();
-        _startPeriodicStatusCheck(); // Recursive call
-      }
-    });
+  // Logging functions - KEEP IN RELEASE
+  void _logMessage(String message) {
+    print('[CastarSDK Flutter] $message');
+    debugPrint('[CastarSDK Flutter] $message');
   }
 
-  void _stopPeriodicStatusCheck() {
-    // This will stop the periodic checking
-    _isRunning = false;
+  void _logError(String error) {
+    print('[CastarSDK Flutter ERROR] $error');
+    debugPrint('[CastarSDK Flutter ERROR] $error');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        title: const Text('CastarSDK Demo'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _isLoading ? null : _getSdkStatus,
+            tooltip: 'Refresh Status',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            // Status Display
+          children: [
+            // Status Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Status: $_status',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      children: [
+                        Icon(
+                          _isSdkRunning ? Icons.check_circle : Icons.error,
+                          color: _isSdkRunning ? Colors.green : Colors.red,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'SDK Status: ${_isSdkRunning ? "Running" : "Stopped"}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    if (_sdkStatus.isNotEmpty) ...[
-                      Text('Running: ${_sdkStatus['running'] ?? false}'),
-                      Text('Device Key: ${_sdkStatus['devKey'] ?? 'N/A'}'),
-                      Text('Device SN: ${_sdkStatus['devSn'] ?? 'N/A'}'),
-                    ],
-                    if (_retryCount > 0) ...[
+                    Text('Status: $_statusMessage'),
+                    if (_lastError.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Retry Attempt: $_retryCount/$maxRetries',
-                        style: TextStyle(
-                          color:
-                              _retryCount >= maxRetries
-                                  ? Colors.red
-                                  : Colors.orange,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'Last Error: $_lastError',
+                        style: const TextStyle(color: Colors.red),
                       ),
                     ],
                   ],
@@ -262,97 +291,100 @@ class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Client ID Input
-            TextField(
-              controller: _clientIdController,
-              decoration: const InputDecoration(
-                labelText: 'Client ID',
-                hintText: 'Enter your CastarSDK Client ID',
-                border: OutlineInputBorder(),
+            // SDK Info Card
+            if (_sdkStatus.isNotEmpty) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'SDK Information',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Running: ${_sdkStatus['running'] ?? 'Unknown'}'),
+                      Text('Dev Key: ${_sdkStatus['devKey'] ?? 'Unknown'}'),
+                      Text('Dev SN: ${_sdkStatus['devSn'] ?? 'Unknown'}'),
+                    ],
+                  ),
+                ),
               ),
-            ),
-
-            const SizedBox(height: 20),
+              const SizedBox(height: 16),
+            ],
 
             // Control Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed:
-                        (_isRunning || _isLoading) ? null : _startCastarSDK,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child:
-                        _isLoading && !_isRunning
-                            ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                            : const Text('Start CastarSDK'),
-                  ),
+            if (_isLoading) ...[
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Processing...'),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed:
-                        (_isRunning && !_isLoading) ? _stopCastarSDK : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Stop CastarSDK'),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // Status Check Button
-            ElevatedButton(
-              onPressed: _checkSDKStatus,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text('Check SDK Status'),
-            ),
+            ] else ...[
+              ElevatedButton.icon(
+                onPressed: _isSdkRunning ? null : _startCastarSdk,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start CastarSDK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              ElevatedButton.icon(
+                onPressed: _isSdkRunning ? _stopCastarSdk : null,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop CastarSDK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              OutlinedButton.icon(
+                onPressed: _retryCastarSdk,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry CastarSDK'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+            ],
 
             const Spacer(),
 
-            // Info Card
+            // Debug Info
             Card(
-              color: Colors.blue.shade50,
-              child: const Padding(
-                padding: EdgeInsets.all(16.0),
+              color: Colors.grey[100],
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'App Lifecycle Management',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      'Debug Information',
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                    SizedBox(height: 8),
-                    Text('• Background processing enabled'),
-                    Text('• CastarSDK keeps running in background'),
-                    Text('• Auto-stopping prevention active'),
-                    Text('• Status monitoring available'),
-                    Text('• Automatic retry mechanism'),
-                    Text('• Crash prevention enabled'),
+                    const SizedBox(height: 8),
+                    Text('App Initialized: $_isInitialized'),
+                    Text('SDK Running: $_isSdkRunning'),
+                    Text('Loading: $_isLoading'),
+                    Text(
+                      'Status Timer Active: ${_statusTimer?.isActive ?? false}',
+                    ),
                   ],
                 ),
               ),

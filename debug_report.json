@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-06-21 19:26:04",
+  "flutter_version": "Flutter 3.29.2 • channel stable • https://github.com/flutter/flutter.git",
+  "ios_setup": {
+    "folder_exists": true,
+    "app_delegate_exists": true,
+    "info_plist_exists": true
+  },
+  "castar_sdk": {
+    "framework_exists": true,
+    "headers_exist": true
+  },
+  "build_status": "",
+  "recommendations": []
+}

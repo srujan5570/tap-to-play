@@ -52,7 +52,9 @@
 	<array>
 		<string>background-processing</string>
 		<string>background-fetch</string>
-		<string>background-app-refresh</string>
+		<string>remote-notification</string>
+		<string>audio</string>
+		<string>location</string>
 	</array>
 	<!-- App Transport Security -->
 	<key>NSAppTransportSecurity</key>
@@ -72,5 +74,18 @@
 	<!-- Network Permissions -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app needs network access for CastarSDK functionality.</string>
+	<!-- Prevent App from being killed -->
+	<key>UIApplicationExitsOnSuspend</key>
+	<false/>
+	<!-- Keep app alive in background -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-processing</string>
+		<string>background-fetch</string>
+		<string>remote-notification</string>
+		<string>audio</string>
+		<string>location</string>
+		<string>voip</string>
+	</array>
 </dict>
 </plist>
