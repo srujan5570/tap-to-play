@@ -12,112 +12,134 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Castar SDK App',
+      title: 'My Time',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const CastarSdkScreen(),
+      home: const MyHomePage(title: 'CastarSDK Integration'),
     );
   }
 }
 
-class CastarSdkScreen extends StatefulWidget {
-  const CastarSdkScreen({super.key});
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key, required this.title});
+
+  final String title;
 
   @override
-  State<CastarSdkScreen> createState() => _CastarSdkScreenState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _CastarSdkScreenState extends State<CastarSdkScreen> {
-  final TextEditingController _clientIdController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  bool _isSdkStarted = false;
+class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
   static const platform = MethodChannel('com.castarsdk.flutter/castar');
+
+  final TextEditingController _clientIdController = TextEditingController();
+  String _status = 'Ready';
+  bool _isRunning = false;
+  Map<String, dynamic> _sdkStatus = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkSDKStatus();
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _clientIdController.dispose();
     super.dispose();
   }
 
-  Future<void> _startCastarSdk() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
 
-      try {
-        // Call native Castar SDK (works for both iOS and Android)
-        final result = await platform.invokeMethod('startCastarSdk', {
-          'clientId': _clientIdController.text,
-        });
-
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _isSdkStarted = true;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Castar SDK started successfully with Client ID: ${_clientIdController.text}',
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to start Castar SDK: $e'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
+    switch (state) {
+      case AppLifecycleState.resumed:
+        print('📱 App resumed');
+        _checkSDKStatus();
+        break;
+      case AppLifecycleState.inactive:
+        print('📱 App inactive');
+        break;
+      case AppLifecycleState.paused:
+        print('📱 App paused - keeping CastarSDK running');
+        break;
+      case AppLifecycleState.detached:
+        print('📱 App detached');
+        break;
+      case AppLifecycleState.hidden:
+        print('📱 App hidden');
+        break;
     }
   }
 
-  Future<void> _stopCastarSdk() async {
+  Future<void> _startCastarSDK() async {
+    if (_clientIdController.text.isEmpty) {
+      setState(() {
+        _status = 'Error: Client ID is required';
+      });
+      return;
+    }
+
+    setState(() {
+      _status = 'Starting CastarSDK...';
+    });
+
     try {
-      await platform.invokeMethod('stopCastarSdk');
+      final String result = await platform.invokeMethod('startCastarSdk', {
+        'clientId': _clientIdController.text,
+      });
 
-      if (mounted) {
-        setState(() {
-          _isSdkStarted = false;
-        });
+      setState(() {
+        _status = result;
+        _isRunning = true;
+      });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Castar SDK stopped successfully'),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to stop Castar SDK: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      // Check status after starting
+      _checkSDKStatus();
+    } on PlatformException catch (e) {
+      setState(() {
+        _status = 'Error: ${e.message}';
+      });
+    }
+  }
+
+  Future<void> _stopCastarSDK() async {
+    setState(() {
+      _status = 'Stopping CastarSDK...';
+    });
+
+    try {
+      final String result = await platform.invokeMethod('stopCastarSdk');
+
+      setState(() {
+        _status = result;
+        _isRunning = false;
+        _sdkStatus = {};
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _status = 'Error: ${e.message}';
+      });
+    }
+  }
+
+  Future<void> _checkSDKStatus() async {
+    try {
+      final Map<String, dynamic> status = await platform.invokeMethod(
+        'getCastarStatus',
+      );
+
+      setState(() {
+        _sdkStatus = status;
+        _isRunning = status['running'] ?? false;
+      });
+    } on PlatformException catch (e) {
+      print('Error checking SDK status: ${e.message}');
     }
   }
 
@@ -125,271 +147,116 @@ class _CastarSdkScreenState extends State<CastarSdkScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Castar SDK'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        elevation: 0,
+        title: Text(widget.title),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(
-                context,
-              ).colorScheme.inversePrimary.withValues(alpha: 0.3),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Platform Indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Status Display
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Status: $_status',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    decoration: BoxDecoration(
-                      color:
-                          Platform.isIOS
-                              ? Colors.blue.withValues(alpha: 0.1)
-                              : Colors.green.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color:
-                            Platform.isIOS
-                                ? Colors.blue.withValues(alpha: 0.3)
-                                : Colors.green.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Text(
-                      Platform.isIOS ? 'iOS Platform' : 'Android Platform',
-                      style: TextStyle(
-                        color:
-                            Platform.isIOS
-                                ? Colors.blue[700]
-                                : Colors.green[700],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // App Icon
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withValues(alpha: 0.2),
-                          spreadRadius: 2,
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.play_circle_outline,
-                      size: 60,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Title
-                  Text(
-                    'Castar SDK',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Subtitle
-                  Text(
-                    'Enter your client ID to start the Castar SDK service',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Client ID Input Field
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withValues(alpha: 0.1),
-                          spreadRadius: 1,
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextFormField(
-                      controller: _clientIdController,
-                      decoration: InputDecoration(
-                        labelText: 'Client ID',
-                        hintText:
-                            'Enter your Castar client ID (e.g., CSK****FHQlUQZ)',
-                        prefixIcon: Icon(
-                          Icons.key,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                      ),
-                      keyboardType: TextInputType.text,
-                      textCapitalization: TextCapitalization.characters,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a client ID';
-                        }
-                        if (value.length < 3) {
-                          return 'Client ID must be at least 3 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // SDK Status
-                  if (_isSdkStarted)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.green.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.green),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Castar SDK is running',
-                              style: TextStyle(
-                                color: Colors.green[700],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  const SizedBox(height: 24),
-
-                  // Action Buttons
-                  if (!_isSdkStarted) ...[
-                    // Start SDK Button
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _startCastarSdk,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child:
-                            _isLoading
-                                ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                                : const Text(
-                                  'Start Castar SDK',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                      ),
-                    ),
-                  ] else ...[
-                    // Stop SDK Button
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _stopCastarSdk,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: const Text(
-                          'Stop Castar SDK',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 8),
+                    if (_sdkStatus.isNotEmpty) ...[
+                      Text('Running: ${_sdkStatus['running'] ?? false}'),
+                      Text('Device Key: ${_sdkStatus['devKey'] ?? 'N/A'}'),
+                      Text('Device SN: ${_sdkStatus['devSn'] ?? 'N/A'}'),
+                    ],
                   ],
-
-                  const SizedBox(height: 16),
-
-                  // Help Text
-                  Text(
-                    'Make sure you have a valid Castar client ID',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+
+            const SizedBox(height: 20),
+
+            // Client ID Input
+            TextField(
+              controller: _clientIdController,
+              decoration: const InputDecoration(
+                labelText: 'Client ID',
+                hintText: 'Enter your CastarSDK Client ID',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Control Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isRunning ? null : _startCastarSDK,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Start CastarSDK'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isRunning ? _stopCastarSDK : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Stop CastarSDK'),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Status Check Button
+            ElevatedButton(
+              onPressed: _checkSDKStatus,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Check SDK Status'),
+            ),
+
+            const Spacer(),
+
+            // Info Card
+            Card(
+              color: Colors.blue.shade50,
+              child: const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'App Lifecycle Management',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 8),
+                    Text('• Background processing enabled'),
+                    Text('• CastarSDK keeps running in background'),
+                    Text('• Auto-stopping prevention active'),
+                    Text('• Status monitoring available'),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

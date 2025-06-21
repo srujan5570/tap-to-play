@@ -5,6 +5,7 @@ import CastarSDK
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
   private var castarInstance: Castar?
+  private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
   
   override func application(
     _ application: UIApplication,
@@ -55,6 +56,18 @@ import CastarSDK
           result("Castar SDK was not running")
         }
         
+      case "getCastarStatus":
+        if let instance = self.castarInstance {
+          let status = [
+            "running": instance.running,
+            "devKey": instance.getDevKey(),
+            "devSn": instance.getDevSn()
+          ]
+          result(status)
+        } else {
+          result(["running": false, "devKey": "", "devSn": ""])
+        }
+        
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -62,5 +75,60 @@ import CastarSDK
     
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+  
+  // MARK: - App Lifecycle Management
+  
+  override func applicationWillResignActive(_ application: UIApplication) {
+    print("🔄 App will resign active - keeping CastarSDK running")
+    // Keep CastarSDK running when app goes to background
+  }
+  
+  override func applicationDidEnterBackground(_ application: UIApplication) {
+    print("📱 App entered background - starting background task")
+    
+    // Start background task to keep app alive
+    backgroundTask = application.beginBackgroundTask(withName: "CastarSDKBackgroundTask") {
+      // Background task expiration handler
+      print("⚠️ Background task expired")
+      self.endBackgroundTask()
+    }
+    
+    // Keep CastarSDK running in background
+    if let instance = castarInstance {
+      print("🔄 Keeping CastarSDK running in background")
+    }
+  }
+  
+  override func applicationWillEnterForeground(_ application: UIApplication) {
+    print("📱 App will enter foreground")
+    endBackgroundTask()
+  }
+  
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    print("📱 App became active")
+    endBackgroundTask()
+  }
+  
+  override func applicationWillTerminate(_ application: UIApplication) {
+    print("🛑 App will terminate - stopping CastarSDK")
+    
+    // Stop CastarSDK when app terminates
+    if let instance = castarInstance {
+      instance.stop()
+      castarInstance = nil
+    }
+    
+    endBackgroundTask()
+  }
+  
+  // MARK: - Background Task Management
+  
+  private func endBackgroundTask() {
+    if backgroundTask != .invalid {
+      UIApplication.shared.endBackgroundTask(backgroundTask)
+      backgroundTask = .invalid
+      print("✅ Background task ended")
+    }
   }
 }

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Castar SDK</string>
+	<string>My Time</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,14 +41,36 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Background Modes for CastarSDK -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-processing</string>
+		<string>background-fetch</string>
+		<string>background-app-refresh</string>
+	</array>
+	<!-- App Transport Security -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
 	</dict>
+	<!-- Privacy Permissions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location access for CastarSDK functionality.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access for CastarSDK functionality.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs location access for CastarSDK functionality.</string>
+	<!-- Network Permissions -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app needs network access for CastarSDK functionality.</string>
 </dict>
 </plist>
