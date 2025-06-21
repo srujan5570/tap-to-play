@@ -4,7 +4,7 @@ import CastarSDK
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
-  private var castarInstance: CSDK?
+  private var castarInstance: Castar?
   
   override func application(
     _ application: UIApplication,
@@ -29,7 +29,7 @@ import CastarSDK
         // Start Castar SDK in background thread
         DispatchQueue.global(qos: .background).async {
           // Create CastarSDK instance with client ID
-          self.castarInstance = CSDK.createInstance(withDevKey: clientId)
+          self.castarInstance = Castar.createInstance(withDevKey: clientId)
           
           if let instance = self.castarInstance {
             // Start the SDK

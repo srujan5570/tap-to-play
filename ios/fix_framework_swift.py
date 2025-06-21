@@ -81,18 +81,18 @@ def check_and_fix_framework():
         with open(csdk_header, 'r') as f:
             content = f.read()
         
-        # Check if CSDK class is properly declared
-        if '@interface CSDK' in content:
-            print("✅ CSDK class found in header")
+        # Check if Castar class is properly declared (the class is named Castar, not CSDK)
+        if '@interface Castar' in content:
+            print("✅ Castar class found in header")
             
             # Check if it's marked as @objc or inherits from NSObject
             if 'NSObject' in content or '@objc' in content:
-                print("✅ CSDK class properly configured for Swift")
+                print("✅ Castar class properly configured for Swift")
             else:
-                print("⚠️ CSDK class may not be properly exposed to Swift")
+                print("⚠️ Castar class may not be properly exposed to Swift")
                 print("📋 Consider adding @objc annotation or NSObject inheritance")
         else:
-            print("❌ CSDK class not found in header")
+            print("❌ Castar class not found in header")
             return False
     else:
         print(f"❌ CSDK.h header not found: {csdk_header}")
