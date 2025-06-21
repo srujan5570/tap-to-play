@@ -17,10 +17,30 @@ jobs:
         with:
           channel: 'stable'
           architecture: x64
+      
+      - name: Download CastarSDK Framework
+        run: |
+          echo "🔧 Downloading CastarSDK framework..."
+          mkdir -p ios/Frameworks
+          curl -L "https://download.castarsdk.com/ios.zip" -o ios/Frameworks/castar-ios.zip
+          unzip ios/Frameworks/castar-ios.zip -d ios/Frameworks/
+          mv ios/Frameworks/CastarSDK-IOS/CastarSDK.framework ios/Frameworks/
+          rm -rf ios/Frameworks/CastarSDK-IOS
+          rm ios/Frameworks/castar-ios.zip
+          echo "✅ CastarSDK framework downloaded and extracted"
+          ls -la ios/Frameworks/
+
       - run: flutter pub get
 
       - run: pod repo update
         working-directory: ios
+
+      - name: Integrate CastarSDK Framework
+        run: |
+          echo "🔧 Integrating CastarSDK framework into Xcode project..."
+          cd ios
+          python add_framework_to_project.py
+          echo "✅ Framework integration complete"
 
       - run: flutter build ios --release --no-codesign
 
