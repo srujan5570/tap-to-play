@@ -59,7 +59,7 @@ import CastarSDK
       case "getCastarStatus":
         if let instance = self.castarInstance {
           let status = [
-            "running": instance.running,
+            "running": instance.isRunning,
             "devKey": instance.getDevKey(),
             "devSn": instance.getDevSn()
           ]
