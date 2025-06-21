@@ -4,6 +4,8 @@ import CastarSDK
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
+  private var castarInstance: CSDK?
+  
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -26,17 +28,32 @@ import CastarSDK
         
         // Start Castar SDK in background thread
         DispatchQueue.global(qos: .background).async {
-          CastarSDK.Start(application, clientId)
+          // Create CastarSDK instance with client ID
+          self.castarInstance = CSDK.createInstance(withDevKey: clientId)
           
-          DispatchQueue.main.async {
-            result("Castar SDK started successfully with client ID: \(clientId)")
+          if let instance = self.castarInstance {
+            // Start the SDK
+            instance.start()
+            
+            DispatchQueue.main.async {
+              result("Castar SDK started successfully with client ID: \(clientId)")
+            }
+          } else {
+            DispatchQueue.main.async {
+              result(FlutterError(code: "SDK_INIT_FAILED", message: "Failed to initialize CastarSDK", details: nil))
+            }
           }
         }
         
       case "stopCastarSdk":
         // Stop Castar SDK
-        CastarSDK.Stop()
-        result("Castar SDK stopped successfully")
+        if let instance = self.castarInstance {
+          instance.stop()
+          self.castarInstance = nil
+          result("Castar SDK stopped successfully")
+        } else {
+          result("Castar SDK was not running")
+        }
         
       default:
         result(FlutterMethodNotImplemented)
