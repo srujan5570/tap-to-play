@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,7 +11,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Client ID App',
+      title: 'Castar SDK App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
@@ -18,22 +19,24 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const ClientIdScreen(),
+      home: const CastarSdkScreen(),
     );
   }
 }
 
-class ClientIdScreen extends StatefulWidget {
-  const ClientIdScreen({super.key});
+class CastarSdkScreen extends StatefulWidget {
+  const CastarSdkScreen({super.key});
 
   @override
-  State<ClientIdScreen> createState() => _ClientIdScreenState();
+  State<CastarSdkScreen> createState() => _CastarSdkScreenState();
 }
 
-class _ClientIdScreenState extends State<ClientIdScreen> {
+class _CastarSdkScreenState extends State<CastarSdkScreen> {
   final TextEditingController _clientIdController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isSdkStarted = false;
+  static const platform = MethodChannel('com.castarsdk.flutter/castar');
 
   @override
   void dispose() {
@@ -41,29 +44,79 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
     super.dispose();
   }
 
-  void _submitClientId() {
+  Future<void> _startCastarSdk() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      // Simulate API call or processing
-      Future.delayed(const Duration(seconds: 2), () {
+      try {
+        // Call native Castar SDK
+        final result = await platform.invokeMethod('startCastarSdk', {
+          'clientId': _clientIdController.text,
+        });
+
         if (mounted) {
           setState(() {
             _isLoading = false;
+            _isSdkStarted = true;
           });
 
-          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Client ID submitted: ${_clientIdController.text}'),
+              content: Text(
+                'Castar SDK started successfully with Client ID: ${_clientIdController.text}',
+              ),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
           );
         }
-      });
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to start Castar SDK: $e'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _stopCastarSdk() async {
+    try {
+      await platform.invokeMethod('stopCastarSdk');
+
+      if (mounted) {
+        setState(() {
+          _isSdkStarted = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Castar SDK stopped successfully'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to stop Castar SDK: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -71,7 +124,7 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Client ID'),
+        title: const Text('Castar SDK'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         elevation: 0,
       ),
@@ -113,7 +166,7 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
                       ],
                     ),
                     child: Icon(
-                      Icons.person_outline,
+                      Icons.play_circle_outline,
                       size: 60,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -123,7 +176,7 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
 
                   // Title
                   Text(
-                    'Enter Client ID',
+                    'Castar SDK',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -135,7 +188,7 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
 
                   // Subtitle
                   Text(
-                    'Please provide your client identification number to continue',
+                    'Enter your client ID to start the Castar SDK service',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
@@ -162,9 +215,10 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
                       controller: _clientIdController,
                       decoration: InputDecoration(
                         labelText: 'Client ID',
-                        hintText: 'Enter your client ID',
+                        hintText:
+                            'Enter your Castar client ID (e.g., CSK****FHQlUQZ)',
                         prefixIcon: Icon(
-                          Icons.badge_outlined,
+                          Icons.key,
                           color: Theme.of(context).colorScheme.primary,
                         ),
                         border: OutlineInputBorder(
@@ -194,46 +248,103 @@ class _ClientIdScreenState extends State<ClientIdScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Submit Button
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _submitClientId,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  // SDK Status
+                  if (_isSdkStarted)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.green.withValues(alpha: 0.3),
                         ),
-                        elevation: 2,
                       ),
-                      child:
-                          _isLoading
-                              ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Castar SDK is running',
+                              style: TextStyle(
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  const SizedBox(height: 24),
+
+                  // Action Buttons
+                  if (!_isSdkStarted) ...[
+                    // Start SDK Button
+                    SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _startCastarSdk,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                                : const Text(
+                                  'Start Castar SDK',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              )
-                              : const Text(
-                                'Submit',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    // Stop SDK Button
+                    SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _stopCastarSdk,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: const Text(
+                          'Stop Castar SDK',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
                   // Help Text
                   Text(
-                    'Don\'t have a client ID? Contact support',
+                    'Make sure you have a valid Castar client ID',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
                     ),
