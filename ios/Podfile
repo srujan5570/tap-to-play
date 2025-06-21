@@ -33,8 +33,9 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   
-  # Add Castar SDK dependency
-  pod 'CastarSdk', '~> 1.0'
+  # TODO: Add Castar SDK dependency when available
+  # pod 'CastarSdk', '~> 1.0'
+  # OR add CastarSdk.framework manually to your Xcode project
 end
 
 post_install do |installer|

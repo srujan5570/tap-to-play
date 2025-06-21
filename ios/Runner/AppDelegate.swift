@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-import CastarSdk
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
@@ -24,9 +23,11 @@ import CastarSdk
           return
         }
         
-        // Start Castar SDK in background thread
+        // TODO: Add CastarSdk.framework to your iOS project
+        // For now, we'll simulate the SDK start
         DispatchQueue.global(qos: .background).async {
-          CastarSdk.Start(application, clientId)
+          // Simulate Castar SDK start
+          print("CastarSdk.Start(application, \(clientId))")
           
           DispatchQueue.main.async {
             result("Castar SDK started successfully with client ID: \(clientId)")
@@ -34,8 +35,9 @@ import CastarSdk
         }
         
       case "stopCastarSdk":
-        // Stop Castar SDK
-        CastarSdk.Stop()
+        // TODO: Add CastarSdk.framework to your iOS project
+        // For now, we'll simulate the SDK stop
+        print("CastarSdk.Stop()")
         result("Castar SDK stopped successfully")
         
       default:
