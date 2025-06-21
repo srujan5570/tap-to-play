@@ -1,7 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internet permission for Castar SDK -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
     <application
-        android:label="my_time"
-        android:name="${applicationName}"
+        android:label="Castar SDK"
+        android:name=".MyApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

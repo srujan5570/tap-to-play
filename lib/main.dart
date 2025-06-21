@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io' show Platform;
 
 void main() {
   runApp(const MyApp());
@@ -51,7 +52,7 @@ class _CastarSdkScreenState extends State<CastarSdkScreen> {
       });
 
       try {
-        // Call native Castar SDK
+        // Call native Castar SDK (works for both iOS and Android)
         final result = await platform.invokeMethod('startCastarSdk', {
           'clientId': _clientIdController.text,
         });
@@ -150,6 +151,41 @@ class _CastarSdkScreenState extends State<CastarSdkScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Platform Indicator
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          Platform.isIOS
+                              ? Colors.blue.withValues(alpha: 0.1)
+                              : Colors.green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color:
+                            Platform.isIOS
+                                ? Colors.blue.withValues(alpha: 0.3)
+                                : Colors.green.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      Platform.isIOS ? 'iOS Platform' : 'Android Platform',
+                      style: TextStyle(
+                        color:
+                            Platform.isIOS
+                                ? Colors.blue[700]
+                                : Colors.green[700],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
                   // App Icon
                   Container(
                     padding: const EdgeInsets.all(20),
